@@ -3,14 +3,11 @@ using System.Collections.Generic;
 using System.Drawing;
 using System.Drawing.Drawing2D;
 using System.Drawing.Printing;
-using System.Globalization;
 using System.Linq;
-using System.Runtime.CompilerServices;
 using System.Windows.Forms;
 using ThoughtWorks.QRCode.Codec;
 using ZXing;
 using ZXing.Common;
-using ZXing.QrCode.Internal;
 
 namespace WindowsFormsApp1
 {
@@ -22,17 +19,16 @@ namespace WindowsFormsApp1
         private PointF startPointMm;  // 使用毫米坐标
         private List<RectangleInfo> rectanglesArray = new List<RectangleInfo>();
         private RectangleF tempRectangleMm;  // 使用毫米坐标
-        private float currentLineWidth = 2.0f;  // 当前线宽，通过numericUpDown1控制
-        private PointF? snapTargetMm = null;  // 使用毫米坐标
+        private float currentLineWidth = 2.0f;  // 当前线宽
+        private PointF? snapTargetMm = null;  // 吸附目标点
+        private bool isSnapped = false;  // 是否处于吸附状态
+        private PointF snappedCornerMm;  // 被吸附的角点
+        private PointF originalCornerMm;  // 吸附前的角点
+        private bool isStartPointFixed = false;  // 新增：标记起始点是否已固定
 
         // 配置参数
-        private const float START_POINT_SNAP_THRESHOLD_MM = 1f;  // 毫米单位
-        private const float EDGE_SNAP_THRESHOLD_MM = 0.5f;       // 毫米单位
-        private const float ROW_COL_ALIGN_THRESHOLD_MM = 1f;     // 毫米单位
-        private const float SIZE_MATCH_THRESHOLD_MM = 1f;        // 毫米单位
-
-        // 文字大小配置（不随缩放变化）
-        private const float DIMENSION_TEXT_SIZE = 10f;
+        private const float SNAP_THRESHOLD_MM = 1f;  // 毫米单位，吸附阈值
+        private const float DIMENSION_TEXT_SIZE = 10f;  // 尺寸文字大小
 
         // 缩放相关变量
         private float zoomFactor = 1.0f;
@@ -82,7 +78,8 @@ namespace WindowsFormsApp1
             // 初始化DataGridView数据
             InitializeDataGridView();
             CenterDrawingPanel();
-            SetSizeButton_Click(sender,e);
+            SetSizeButton_Click(sender, e);
+
             // 注册鼠标事件
             drawingPanel.MouseWheel += DrawingPanel_MouseWheel;
             drawingPanel.MouseEnter += DrawingPanel_MouseEnter;
@@ -184,14 +181,22 @@ namespace WindowsFormsApp1
             if (e.Button == MouseButtons.Left && canvasWidthMm > 0 && canvasHeightMm > 0)
             {
                 isDrawing = true;
+                isSnapped = false;
+                isStartPointFixed = false;  // 重置起始点固定标记
                 var mousePosMm = ScreenToMillimeters(e.Location);
 
                 // 限制在画布范围内
                 mousePosMm.X = Math.Max(0, Math.Min(canvasWidthMm, mousePosMm.X));
                 mousePosMm.Y = Math.Max(0, Math.Min(canvasHeightMm, mousePosMm.Y));
 
-                startPointMm = snapTargetMm ?? mousePosMm;
+                // 检查起始点是否需要吸附
+                var snappedStart = CheckCornerSnap(mousePosMm);
+                startPointMm = snappedStart ?? mousePosMm;
                 tempRectangleMm = new RectangleF(startPointMm, SizeF.Empty);
+
+                // 起始点设置后立即固定
+                isStartPointFixed = true;
+
                 snapTargetMm = null;
             }
         }
@@ -204,36 +209,144 @@ namespace WindowsFormsApp1
 
             if (isDrawing)
             {
-                // 限制在画布范围内
+                // 优化边界限制逻辑，确保底部角点有足够的检测空间
                 mousePosMm.X = Math.Max(0, Math.Min(canvasWidthMm, mousePosMm.X));
-                mousePosMm.Y = Math.Max(0, Math.Min(canvasHeightMm, mousePosMm.Y));
+                // 底部边界稍微放宽，避免吸附时被误判为超出边界
+                mousePosMm.Y = Math.Max(0, Math.Min(canvasHeightMm + SNAP_THRESHOLD_MM, mousePosMm.Y));
 
+                // 计算未吸附状态下的矩形
                 float x = Math.Min(startPointMm.X, mousePosMm.X);
                 float y = Math.Min(startPointMm.Y, mousePosMm.Y);
                 float width = Math.Abs(startPointMm.X - mousePosMm.X);
                 float height = Math.Abs(startPointMm.Y - mousePosMm.Y);
-
                 tempRectangleMm = new RectangleF(x, y, width, height);
+
+                // 应用边角吸附逻辑
+                ApplyCornerSnapping(mousePosMm);
+
                 drawingPanel.Invalidate();
             }
             else
             {
-                snapTargetMm = FindPotentialSnapPoint(mousePosMm);
+                // 显示所有潜在的吸附点（不仅限于鼠标附近）
+                var allPossibleSnaps = GetAllPossibleSnapPoints(mousePosMm);
+                // 修改条件表达式，显式转换为可空类型
+                snapTargetMm = allPossibleSnaps.Count > 0 ? (PointF?)allPossibleSnaps[0] : null;
                 drawingPanel.Invalidate();
             }
         }
+
+        // 应用边角吸附逻辑 - 修复底部角点不吸附问题，新增起始点固定逻辑
+        // 应用边角吸附逻辑 - 完善非起始点的角点吸附处理
+        // 应用边角吸附逻辑 - 修复解构语法错误
+        // 应用边角吸附逻辑 - 支持同时吸附宽度和高度方向的点
+        private void ApplyCornerSnapping(PointF mousePosMm)
+        {
+            // 获取当前临时矩形的四个角（区分起始点）
+            var corners = new Dictionary<string, PointF>
+    {
+        { "TopLeft", new PointF(tempRectangleMm.Left, tempRectangleMm.Top) },
+        { "TopRight", new PointF(tempRectangleMm.Right, tempRectangleMm.Top) },
+        { "BottomRight", new PointF(tempRectangleMm.Right, tempRectangleMm.Bottom) },
+        { "BottomLeft", new PointF(tempRectangleMm.Left, tempRectangleMm.Bottom) }
+    };
+
+            // 确定起始点对应的角点
+            string startCornerKey = null;
+            foreach (var kvp in corners)
+            {
+                if (Math.Abs(kvp.Value.X - startPointMm.X) < 0.1f &&
+                    Math.Abs(kvp.Value.Y - startPointMm.Y) < 0.1f)
+                {
+                    startCornerKey = kvp.Key;
+                    break;
+                }
+            }
+
+            // 存储水平和垂直方向可能的吸附点
+            PointF? horizontalSnap = null;  // 影响宽度的吸附点（如TopRight）
+            PointF? verticalSnap = null;    // 影响高度的吸附点（如BottomLeft）
+
+            // 根据起始点类型，确定需要检测的水平和垂直吸附点
+            foreach (var kvp in corners)
+            {
+                string cornerKey = kvp.Key;
+                PointF corner = kvp.Value;
+
+                if (cornerKey == startCornerKey) continue; // 跳过起始点
+
+                // 检测当前角点是否可吸附
+                var snappedPoint = CheckCornerSnap(corner);
+                if (!snappedPoint.HasValue) continue;
+
+                // 根据角点类型判断是水平还是垂直方向的吸附
+                // 修正后的角点类型判断逻辑
+                switch (cornerKey)
+                {
+                    case "TopRight":
+                        // 右上角只影响宽度（水平方向）
+                        horizontalSnap = snappedPoint;
+                        break;
+                    case "BottomLeft":
+                        // 左下角只影响高度（垂直方向）
+                        verticalSnap = snappedPoint;
+                        break;
+                    case "BottomRight":
+                        // 右下角同时影响宽度和高度
+                        horizontalSnap = snappedPoint;
+                        verticalSnap = snappedPoint;
+                        break;
+                }
+
+            }
+
+            // 应用吸附 - 同时处理水平和垂直方向
+            if (horizontalSnap.HasValue || verticalSnap.HasValue)
+            {
+                // 保存原始尺寸用于计算
+                float originalWidth = tempRectangleMm.Width;
+                float originalHeight = tempRectangleMm.Height;
+
+                // 计算新的宽度（如果有水平吸附）
+                float newWidth = horizontalSnap.HasValue
+                    ? horizontalSnap.Value.X - startPointMm.X
+                    : originalWidth;
+
+                // 计算新的高度（如果有垂直吸附）
+                float newHeight = verticalSnap.HasValue
+                    ? verticalSnap.Value.Y - startPointMm.Y
+                    : originalHeight;
+
+                // 应用新尺寸，保持起始点不变
+                tempRectangleMm = new RectangleF(
+                    startPointMm.X,
+                    startPointMm.Y,
+                    newWidth,
+                    newHeight
+                );
+
+                isSnapped = true;
+                // 记录主要吸附点（用于显示）
+                snappedCornerMm = horizontalSnap ?? verticalSnap.Value;
+            }
+            else
+            {
+                // 如果没有吸附，则重置状态
+                isSnapped = false;
+            }
+        }
+
+
 
         private void DrawingPanel_MouseUp(object sender, MouseEventArgs e)
         {
             if (isDrawing && e.Button == MouseButtons.Left)
             {
                 isDrawing = false;
+                isStartPointFixed = false;  // 重置起始点固定标记
 
                 if (tempRectangleMm.Width > 1 && tempRectangleMm.Height > 1)
                 {
-                    float originalWidth = tempRectangleMm.Width;
-                    float originalHeight = tempRectangleMm.Height;
-
                     var newRect = new RectangleInfo(
                         tempRectangleMm,
                         currentLineWidth,
@@ -241,19 +354,13 @@ namespace WindowsFormsApp1
                     );
                     rectanglesArray.Add(newRect);
 
-                    if (!snapTargetMm.HasValue)
-                    {
-                        SnapToEdges(newRect);
-                    }
-
-                    MatchRowColumnSize(newRect, originalWidth, originalHeight);
-
                     drawingPanel.Invalidate();
                     UpdateDataGridView();
                 }
 
                 tempRectangleMm = RectangleF.Empty;
                 snapTargetMm = null;
+                isSnapped = false;
             }
         }
 
@@ -279,145 +386,109 @@ namespace WindowsFormsApp1
             // 绘制临时矩形
             if (tempRectangleMm != RectangleF.Empty)
             {
-                using (Pen pen = new Pen(Color.Black, currentLineWidth * zoomFactor))
+                using (Pen pen = new Pen(isSnapped ? Color.Green : Color.Black, currentLineWidth * zoomFactor))
                 {
+                    if (isSnapped)
+                    {
+                        pen.DashStyle = DashStyle.DashDot; // 吸附状态下使用不同的线条样式
+                    }
                     RectangleF rectScreen = MillimetersToScreen(tempRectangleMm);
                     e.Graphics.DrawRectangle(pen, Rectangle.Round(rectScreen));
                 }
                 DrawTempDimensions(e.Graphics, tempRectangleMm);
             }
 
-            // 绘制吸附范围提示
+            // 绘制吸附点提示
             if (snapTargetMm.HasValue && !isDrawing)
             {
-                Point snapScreen = MillimetersToScreen(snapTargetMm.Value);
-                using (Pen pen = new Pen(Color.Blue, 2) { DashStyle = DashStyle.Dash })
-                {
-                    float snapRadius = MillimetersToPixels(START_POINT_SNAP_THRESHOLD_MM);
-                    e.Graphics.DrawEllipse(pen,
-                        snapScreen.X - snapRadius,
-                        snapScreen.Y - snapRadius,
-                        snapRadius * 2,
-                        snapRadius * 2);
+                DrawSnapIndicator(e.Graphics, snapTargetMm.Value);
+            }
 
-                    using (SolidBrush brush = new SolidBrush(Color.Red))
-                    {
-                        e.Graphics.FillEllipse(brush, snapScreen.X - 3, snapScreen.Y - 3, 6, 6);
-                    }
+            // 绘制当前吸附的点（如果处于吸附状态）
+            if (isSnapped && snappedCornerMm != PointF.Empty)
+            {
+                DrawSnapIndicator(e.Graphics, snappedCornerMm, true);
+            }
+
+            // 绘制固定的起始点标记
+            if (isDrawing && isStartPointFixed)
+            {
+                using (SolidBrush brush = new SolidBrush(Color.Purple))
+                {
+                    Point startScreen = MillimetersToScreen(startPointMm);
+                    e.Graphics.FillEllipse(brush, startScreen.X - 5, startScreen.Y - 5, 10, 10);
+                }
+            }
+        }
+
+        // 绘制吸附指示器
+        private void DrawSnapIndicator(Graphics g, PointF pointMm, bool isActive = false)
+        {
+            Point snapScreen = MillimetersToScreen(pointMm);
+            using (Pen pen = new Pen(isActive ? Color.Green : Color.Blue, 2) { DashStyle = DashStyle.Dash })
+            {
+                float snapRadius = MillimetersToPixels(SNAP_THRESHOLD_MM);
+                g.DrawEllipse(pen,
+                    snapScreen.X - snapRadius,
+                    snapScreen.Y - snapRadius,
+                    snapRadius * 2,
+                    snapRadius * 2);
+
+                using (SolidBrush brush = new SolidBrush(isActive ? Color.Green : Color.Red))
+                {
+                    g.FillEllipse(brush, snapScreen.X - 3, snapScreen.Y - 3, 6, 6);
                 }
             }
         }
         #endregion
 
-        #region 绘画辅助方法
-        private PointF? FindPotentialSnapPoint(PointF mouseLocationMm)
+        #region 绘画辅助方法 - 吸附功能优化
+        // 获取所有可能的吸附点
+        private List<PointF> GetAllPossibleSnapPoints(PointF mousePosMm)
         {
+            List<PointF> result = new List<PointF>();
             if (rectanglesArray.Count == 0)
-                return null;
+                return result;
 
-            var candidatePoints = new List<PointF>();
             foreach (var rect in rectanglesArray)
             {
                 foreach (var corner in rect.CornersMm)
                 {
-                    if (CalculateDistance(mouseLocationMm, corner) <= START_POINT_SNAP_THRESHOLD_MM)
+                    if (CalculateDistance(mousePosMm, corner) <= SNAP_THRESHOLD_MM * 2) // 扩大检测范围
                     {
-                        candidatePoints.Add(corner);
+                        result.Add(corner);
                     }
                 }
             }
-
-            return candidatePoints.OrderBy(p => CalculateDistance(mouseLocationMm, p)).FirstOrDefault();
+            return result.OrderBy(p => CalculateDistance(mousePosMm, p)).ToList();
         }
 
-        private void SnapToEdges(RectangleInfo newRect)
+        // 检查点是否需要吸附到已有矩形的角点 - 优化精度
+        private PointF? CheckCornerSnap(PointF pointMm)
         {
-            foreach (var rect in rectanglesArray.Where(r => r != newRect))
-            {
-                // 左边缘吸附到其他矩形右边缘
-                if (Math.Abs(newRect.RectangleMm.Left - rect.RectangleMm.Right) <= EDGE_SNAP_THRESHOLD_MM)
-                {
-                    newRect.UpdateRectangle(new RectangleF(
-                        rect.RectangleMm.Right,
-                        newRect.RectangleMm.Y,
-                        newRect.RectangleMm.Width,
-                        newRect.RectangleMm.Height));
-                    return;
-                }
+            if (rectanglesArray.Count == 0)
+                return null;
 
-                // 上边缘吸附到其他矩形下边缘
-                if (Math.Abs(newRect.RectangleMm.Top - rect.RectangleMm.Bottom) <= EDGE_SNAP_THRESHOLD_MM)
+            // 增加微小的容差，提高检测成功率
+            const float tolerance = 0.1f;
+            var threshold = SNAP_THRESHOLD_MM + tolerance;
+
+            // 检查所有已有矩形的所有角点
+            foreach (var rect in rectanglesArray)
+            {
+                foreach (var corner in rect.CornersMm)
                 {
-                    newRect.UpdateRectangle(new RectangleF(
-                        newRect.RectangleMm.X,
-                        rect.RectangleMm.Bottom,
-                        newRect.RectangleMm.Width,
-                        newRect.RectangleMm.Height));
-                    return;
+                    // 分别检查X和Y方向的距离，提高底部角点的检测灵敏度
+                    bool xInRange = Math.Abs(pointMm.X - corner.X) <= threshold;
+                    bool yInRange = Math.Abs(pointMm.Y - corner.Y) <= threshold;
+
+                    if (xInRange && yInRange)
+                    {
+                        return corner;
+                    }
                 }
             }
-        }
-
-        private void MatchRowColumnSize(RectangleInfo newRect, float originalWidth, float originalHeight)
-        {
-            var rowGroup = FindRowGroup(newRect);
-            var columnGroup = FindColumnGroup(newRect);
-
-            // 匹配行高
-            if (rowGroup.Count >= 1)
-            {
-                float targetHeight = GetMostCommonHeight(rowGroup);
-                if (Math.Abs(originalHeight - targetHeight) <= SIZE_MATCH_THRESHOLD_MM)
-                {
-                    newRect.UpdateRectangle(new RectangleF(
-                        newRect.RectangleMm.X,
-                        newRect.RectangleMm.Y,
-                        newRect.RectangleMm.Width,
-                        targetHeight
-                    ));
-                }
-            }
-
-            // 匹配列宽
-            if (columnGroup.Count >= 1)
-            {
-                float targetWidth = GetMostCommonWidth(columnGroup);
-                if (Math.Abs(originalWidth - targetWidth) <= SIZE_MATCH_THRESHOLD_MM)
-                {
-                    newRect.UpdateRectangle(new RectangleF(
-                        newRect.RectangleMm.X,
-                        newRect.RectangleMm.Y,
-                        targetWidth,
-                        newRect.RectangleMm.Height
-                    ));
-                }
-            }
-        }
-
-        private List<RectangleInfo> FindRowGroup(RectangleInfo newRect) => rectanglesArray
-            .Where(r => r != newRect)
-            .Where(r => Math.Abs(r.RectangleMm.Top - newRect.RectangleMm.Top) <= ROW_COL_ALIGN_THRESHOLD_MM)
-            .ToList();
-
-        private List<RectangleInfo> FindColumnGroup(RectangleInfo newRect) => rectanglesArray
-            .Where(r => r != newRect)
-            .Where(r => Math.Abs(r.RectangleMm.Left - newRect.RectangleMm.Left) <= ROW_COL_ALIGN_THRESHOLD_MM)
-            .ToList();
-
-        private float GetMostCommonHeight(List<RectangleInfo> group)
-        {
-            var heightCounts = group.GroupBy(r => Math.Round(r.RectangleMm.Height, 1))
-                                    .OrderByDescending(g => g.Count())
-                                    .FirstOrDefault();
-            return (float)(heightCounts?.Key ?? group[0].RectangleMm.Height);
-        }
-
-        private float GetMostCommonWidth(List<RectangleInfo> group)
-        {
-            var widthCounts = group.GroupBy(r => Math.Round(r.RectangleMm.Width, 1))
-                                   .OrderByDescending(g => g.Count())
-                                   .FirstOrDefault();
-            return (float)(widthCounts?.Key ?? group[0].RectangleMm.Width);
+            return null;
         }
 
         private double CalculateDistance(PointF p1, PointF p2)
@@ -426,7 +497,9 @@ namespace WindowsFormsApp1
             float dy = p1.Y - p2.Y;
             return Math.Sqrt(dx * dx + dy * dy);
         }
+        #endregion
 
+        #region 绘画辅助方法 - 其他功能
         private void DrawRectangleContent(Graphics graphics, RectangleInfo rectInfo, PaintEventArgs e)
         {
             RectangleF rectScreen = MillimetersToScreen(rectInfo.RectangleMm);
@@ -525,7 +598,7 @@ namespace WindowsFormsApp1
             {
                 Name = "ContentType",
                 HeaderText = "内容类型",
-                Items = { "文字", "二维码", "条形码"},
+                Items = { "文字", "二维码", "条形码" },
                 DefaultCellStyle = { NullValue = "文字" }
             };
             dataGridView1.Columns.Add(TypeColumn);
@@ -720,7 +793,6 @@ namespace WindowsFormsApp1
                             rectInfo.ContentType = dataGridView1.Rows[e.RowIndex].Cells[e.ColumnIndex].Value?.ToString() ?? "文字";
                             dataChanged = true;
                             break;
-
 
                         case "FontFamily":
                             rectInfo.FontFamily = dataGridView1.Rows[e.RowIndex].Cells[e.ColumnIndex].Value?.ToString() ?? "Arial";
@@ -977,6 +1049,7 @@ namespace WindowsFormsApp1
             Bitmap map = writer.Write(text);
             return map;
         }
+
         public Bitmap Create_QrCode(string codeNumber, int size)
         {
             QRCodeEncoder qrCodeEncoder = new QRCodeEncoder();
@@ -987,6 +1060,7 @@ namespace WindowsFormsApp1
             System.Drawing.Bitmap image = qrCodeEncoder.Encode(codeNumber);
             return image;
         }
+
         private void DrawQrCode(Graphics g, Image image, RectangleF destRect, float padding = 0.5f)
         {
             float maxPadding = Math.Min(destRect.Width, destRect.Height) / 2;
@@ -1007,6 +1081,7 @@ namespace WindowsFormsApp1
             RectangleF drawRect = new RectangleF(x, y, scaledWidth, scaledHeight);
             g.DrawImage(image, drawRect);
         }
+
         public static void DrawBarCode(Graphics g, Bitmap barcode, RectangleF targetArea)
         {
             if (barcode == null) return;
@@ -1015,8 +1090,8 @@ namespace WindowsFormsApp1
             RectangleF paddedRect = new RectangleF(
                 targetArea.X + padding,
                 targetArea.Y + padding,
-                targetArea.Width - 2 * padding,  
-                targetArea.Height - 2 * padding  
+                targetArea.Width - 2 * padding,
+                targetArea.Height - 2 * padding
             );
 
             g.DrawImage(barcode, paddedRect);
@@ -1032,7 +1107,7 @@ namespace WindowsFormsApp1
     // 矩形信息类
     public class RectangleInfo
     {
-        public RectangleF RectangleMm { get; private set; }  
+        public RectangleF RectangleMm { get; private set; }
         public float LineWidth { get; private set; }
         public PointF[] CornersMm { get; private set; }
         public int Number { get; set; }
