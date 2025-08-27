@@ -34,6 +34,7 @@ namespace WindowsFormsApp1
             this.printDocument_test = new System.Drawing.Printing.PrintDocument();
             this.mainLayout = new System.Windows.Forms.TableLayoutPanel();
             this.toolbarPanel = new System.Windows.Forms.Panel();
+            this.label2 = new System.Windows.Forms.Label();
             this.label1 = new System.Windows.Forms.Label();
             this.numericUpDown1 = new System.Windows.Forms.NumericUpDown();
             this.WithDrawBtn = new System.Windows.Forms.Button();
@@ -88,6 +89,7 @@ namespace WindowsFormsApp1
             // toolbarPanel
             // 
             this.toolbarPanel.BackColor = System.Drawing.SystemColors.ControlLight;
+            this.toolbarPanel.Controls.Add(this.label2);
             this.toolbarPanel.Controls.Add(this.label1);
             this.toolbarPanel.Controls.Add(this.numericUpDown1);
             this.toolbarPanel.Controls.Add(this.WithDrawBtn);
@@ -103,23 +105,36 @@ namespace WindowsFormsApp1
             this.toolbarPanel.Size = new System.Drawing.Size(794, 54);
             this.toolbarPanel.TabIndex = 0;
             // 
+            // label2
+            // 
+            this.label2.AutoSize = true;
+            this.label2.Font = new System.Drawing.Font("宋体", 10F);
+            this.label2.ForeColor = System.Drawing.Color.Red;
+            this.label2.Location = new System.Drawing.Point(693, 16);
+            this.label2.Name = "label2";
+            this.label2.Size = new System.Drawing.Size(98, 28);
+            this.label2.TabIndex = 9;
+            this.label2.Text = "软件里的单位\r\n都是毫米mm制!";
+            // 
             // label1
             // 
             this.label1.AutoSize = true;
-            this.label1.Location = new System.Drawing.Point(532, 21);
+            this.label1.Font = new System.Drawing.Font("宋体", 11F);
+            this.label1.Location = new System.Drawing.Point(547, 21);
             this.label1.Name = "label1";
-            this.label1.Size = new System.Drawing.Size(41, 12);
+            this.label1.Size = new System.Drawing.Size(52, 15);
             this.label1.TabIndex = 8;
             this.label1.Text = "线宽：";
             // 
             // numericUpDown1
             // 
+            this.numericUpDown1.Font = new System.Drawing.Font("宋体", 11F);
             this.numericUpDown1.Increment = new decimal(new int[] {
             2,
             0,
             0,
             65536});
-            this.numericUpDown1.Location = new System.Drawing.Point(579, 19);
+            this.numericUpDown1.Location = new System.Drawing.Point(608, 18);
             this.numericUpDown1.Maximum = new decimal(new int[] {
             4,
             0,
@@ -131,7 +146,7 @@ namespace WindowsFormsApp1
             0,
             65536});
             this.numericUpDown1.Name = "numericUpDown1";
-            this.numericUpDown1.Size = new System.Drawing.Size(67, 21);
+            this.numericUpDown1.Size = new System.Drawing.Size(67, 24);
             this.numericUpDown1.TabIndex = 7;
             this.numericUpDown1.Value = new decimal(new int[] {
             2,
@@ -141,9 +156,10 @@ namespace WindowsFormsApp1
             // 
             // WithDrawBtn
             // 
-            this.WithDrawBtn.Location = new System.Drawing.Point(430, 16);
+            this.WithDrawBtn.Font = new System.Drawing.Font("宋体", 11F);
+            this.WithDrawBtn.Location = new System.Drawing.Point(436, 14);
             this.WithDrawBtn.Name = "WithDrawBtn";
-            this.WithDrawBtn.Size = new System.Drawing.Size(80, 23);
+            this.WithDrawBtn.Size = new System.Drawing.Size(90, 30);
             this.WithDrawBtn.TabIndex = 5;
             this.WithDrawBtn.Text = "撤销";
             this.WithDrawBtn.UseVisualStyleBackColor = true;
@@ -152,42 +168,47 @@ namespace WindowsFormsApp1
             // widthLabel
             // 
             this.widthLabel.AutoSize = true;
-            this.widthLabel.Location = new System.Drawing.Point(20, 20);
+            this.widthLabel.Font = new System.Drawing.Font("宋体", 11F);
+            this.widthLabel.Location = new System.Drawing.Point(9, 21);
             this.widthLabel.Name = "widthLabel";
-            this.widthLabel.Size = new System.Drawing.Size(35, 12);
+            this.widthLabel.Size = new System.Drawing.Size(45, 15);
             this.widthLabel.TabIndex = 0;
             this.widthLabel.Text = "宽度:";
             // 
             // widthTextBox
             // 
+            this.widthTextBox.Font = new System.Drawing.Font("宋体", 11F);
             this.widthTextBox.Location = new System.Drawing.Point(60, 17);
             this.widthTextBox.Name = "widthTextBox";
-            this.widthTextBox.Size = new System.Drawing.Size(60, 21);
+            this.widthTextBox.Size = new System.Drawing.Size(60, 24);
             this.widthTextBox.TabIndex = 1;
             this.widthTextBox.Text = "100";
             // 
             // heightLabel
             // 
             this.heightLabel.AutoSize = true;
-            this.heightLabel.Location = new System.Drawing.Point(140, 20);
+            this.heightLabel.Font = new System.Drawing.Font("宋体", 11F);
+            this.heightLabel.Location = new System.Drawing.Point(129, 21);
             this.heightLabel.Name = "heightLabel";
-            this.heightLabel.Size = new System.Drawing.Size(35, 12);
+            this.heightLabel.Size = new System.Drawing.Size(45, 15);
             this.heightLabel.TabIndex = 2;
             this.heightLabel.Text = "高度:";
             // 
             // heightTextBox
             // 
+            this.heightTextBox.Font = new System.Drawing.Font("宋体", 11F);
             this.heightTextBox.Location = new System.Drawing.Point(180, 17);
             this.heightTextBox.Name = "heightTextBox";
-            this.heightTextBox.Size = new System.Drawing.Size(60, 21);
+            this.heightTextBox.Size = new System.Drawing.Size(60, 24);
             this.heightTextBox.TabIndex = 3;
             this.heightTextBox.Text = "80";
             // 
             // setSizeButton
             // 
-            this.setSizeButton.Location = new System.Drawing.Point(260, 16);
+            this.setSizeButton.Font = new System.Drawing.Font("宋体", 11F);
+            this.setSizeButton.Location = new System.Drawing.Point(246, 14);
             this.setSizeButton.Name = "setSizeButton";
-            this.setSizeButton.Size = new System.Drawing.Size(80, 23);
+            this.setSizeButton.Size = new System.Drawing.Size(90, 30);
             this.setSizeButton.TabIndex = 4;
             this.setSizeButton.Text = "设置大小";
             this.setSizeButton.UseVisualStyleBackColor = true;
@@ -195,9 +216,10 @@ namespace WindowsFormsApp1
             // 
             // ExportBtn
             // 
-            this.ExportBtn.Location = new System.Drawing.Point(350, 16);
+            this.ExportBtn.Font = new System.Drawing.Font("宋体", 11F);
+            this.ExportBtn.Location = new System.Drawing.Point(340, 13);
             this.ExportBtn.Name = "ExportBtn";
-            this.ExportBtn.Size = new System.Drawing.Size(80, 23);
+            this.ExportBtn.Size = new System.Drawing.Size(90, 30);
             this.ExportBtn.TabIndex = 6;
             this.ExportBtn.Text = "导出";
             this.ExportBtn.UseVisualStyleBackColor = true;
@@ -315,7 +337,7 @@ namespace WindowsFormsApp1
             // 
             // PrintBtn
             // 
-            this.PrintBtn.Location = new System.Drawing.Point(124, 96);
+            this.PrintBtn.Location = new System.Drawing.Point(12, 96);
             this.PrintBtn.Name = "PrintBtn";
             this.PrintBtn.Size = new System.Drawing.Size(108, 37);
             this.PrintBtn.TabIndex = 1;
@@ -332,8 +354,7 @@ namespace WindowsFormsApp1
             this.KeyPreview = true;
             this.Name = "Form1";
             this.StartPosition = System.Windows.Forms.FormStartPosition.CenterScreen;
-            this.Text = "绘画面板应用程序";
-            this.WindowState = System.Windows.Forms.FormWindowState.Maximized;
+            this.Text = "标签绘制APP v1.0";
             this.Load += new System.EventHandler(this.Form1_Load);
             this.SizeChanged += new System.EventHandler(this.Form1_SizeChanged);
             this.mainLayout.ResumeLayout(false);
@@ -354,6 +375,7 @@ namespace WindowsFormsApp1
             this.detailGroupBox.ResumeLayout(false);
             this.detailGroupBox.PerformLayout();
             this.ResumeLayout(false);
+
         }
 
         #endregion
@@ -380,5 +402,6 @@ namespace WindowsFormsApp1
         private Button PrintBtn;
         private Label PrintDevice;
         private Label label1;
+        private Label label2;
     }
 }

@@ -82,7 +82,7 @@ namespace WindowsFormsApp1
             // 初始化DataGridView数据
             InitializeDataGridView();
             CenterDrawingPanel();
-
+            SetSizeButton_Click(sender,e);
             // 注册鼠标事件
             drawingPanel.MouseWheel += DrawingPanel_MouseWheel;
             drawingPanel.MouseEnter += DrawingPanel_MouseEnter;
@@ -109,6 +109,7 @@ namespace WindowsFormsApp1
             comboBox1.SelectedItem = printDocument_test.PrinterSettings.PrinterName;
 
             this.printDocument_test.PrintPage += new PrintPageEventHandler(this.printDocument_test_PrintPage);
+            this.printDocument_test.EndPrint += new PrintEventHandler(this.printDocument_test_EndPrint);
         }
 
         // 初始化线宽控制器
@@ -501,10 +502,10 @@ namespace WindowsFormsApp1
 
             // 添加基础列
             dataGridView1.Columns.Add("Number", "序号");
-            dataGridView1.Columns.Add("X", "X坐标(mm)");
-            dataGridView1.Columns.Add("Y", "Y坐标(mm)");
-            dataGridView1.Columns.Add("Width", "宽度(mm)");
-            dataGridView1.Columns.Add("Height", "高度(mm)");
+            dataGridView1.Columns.Add("X", "X坐标");
+            dataGridView1.Columns.Add("Y", "Y坐标");
+            dataGridView1.Columns.Add("Width", "宽度");
+            dataGridView1.Columns.Add("Height", "高度");
             dataGridView1.Columns.Add("LineWidth", "线宽");
             // 添加边框可见性列
             DataGridViewCheckBoxColumn visiableColumn = new DataGridViewCheckBoxColumn
@@ -570,20 +571,20 @@ namespace WindowsFormsApp1
             dataGridView1.Columns.Add(alignmentColumn);
 
             // 设置列宽和只读属性
-            dataGridView1.Columns["Number"].Width = 50;
+            dataGridView1.Columns["Number"].Width = 60;
             dataGridView1.Columns["Number"].ReadOnly = true;
             dataGridView1.Columns["X"].Width = 80;
             dataGridView1.Columns["Y"].Width = 80;
             dataGridView1.Columns["Width"].Width = 80;
             dataGridView1.Columns["Height"].Width = 80;
             dataGridView1.Columns["LineWidth"].Width = 60;
-            dataGridView1.Columns["Visiable"].Width = 70;
+            dataGridView1.Columns["Visiable"].Width = 80;
             dataGridView1.Columns["Content"].Width = 100;
             dataGridView1.Columns["ContentType"].Width = 100;
             dataGridView1.Columns["FontFamily"].Width = 100;
-            dataGridView1.Columns["FontSize"].Width = 70;
-            dataGridView1.Columns["IsBold"].Width = 70;
-            dataGridView1.Columns["ContentAlignment"].Width = 70;
+            dataGridView1.Columns["FontSize"].Width = 100;
+            dataGridView1.Columns["IsBold"].Width = 80;
+            dataGridView1.Columns["ContentAlignment"].Width = 80;
 
             // 设置标题头居中
             foreach (DataGridViewColumn col in dataGridView1.Columns)
@@ -823,7 +824,7 @@ namespace WindowsFormsApp1
             }
         }
 
-        private void UpdateZoomStatus() => Text = $"绘画面板应用程序 - 缩放: {(zoomFactor * 100):F0}%";
+        private void UpdateZoomStatus() => Text = $"标签绘制APP v1.0 - 缩放: {(zoomFactor * 100):F0}%";
         #endregion
 
         #region 布局和事件处理
@@ -933,8 +934,18 @@ namespace WindowsFormsApp1
                         DrawBarCode(e.Graphics, barcode, rect.RectangleMm);
                     }
                 }
+            }
+        }
 
-                
+        private void printDocument_test_EndPrint(object sender, PrintEventArgs e)
+        {
+            if (!e.Cancel)
+            {
+                MessageBox.Show("输出成功！内容已传输到打印机。", "输出成功", MessageBoxButtons.OK, MessageBoxIcon.Information);
+            }
+            else
+            {
+                MessageBox.Show("打印已取消或发生错误。", "输出失败", MessageBoxButtons.OK, MessageBoxIcon.Warning);
             }
         }
 
@@ -946,6 +957,7 @@ namespace WindowsFormsApp1
             }
 
             printDocument_test.DefaultPageSettings.PaperSize = psz;
+            printDocument_test.PrintController = new StandardPrintController();
             printDocument_test.Print();
         }
         #endregion
@@ -1011,7 +1023,6 @@ namespace WindowsFormsApp1
         }
     }
 
-    // 内容对齐方式枚举
     public enum ContentAlignment
     {
         Left,
@@ -1023,7 +1034,7 @@ namespace WindowsFormsApp1
     {
         public RectangleF RectangleMm { get; private set; }  
         public float LineWidth { get; private set; }
-        public PointF[] CornersMm { get; private set; }      // 角点
+        public PointF[] CornersMm { get; private set; }
         public int Number { get; set; }
         public bool Visiable { get; set; } = true;
         public string Content { get; set; } = "内容";
